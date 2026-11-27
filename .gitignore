@@ -1,0 +1,11 @@
+# build output and releases
+build/
+dist/
+__pycache__/
+*.log
+
+# private working notes (plans, status, follow-ups)
+notes/
+
+# third-party clones and captures: contain personal data, never commit
+reference/
