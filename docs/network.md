@@ -62,6 +62,12 @@ Hydra requests send `Content-Type` and `Accept` `application/x-hydra-binary`, an
 `x-http-sdk-version: 2.5.0`. The accepted replies carried `Content-Type` and
 `X-Hydra-Error-Code: 200`.
 
+## Reply headers
+
+(v) After the status code, the game asks each Hydra reply for `Server`, `Date`, `Content-Type`,
+`Connection`, `X-Hydra-Error-Code` and `X-Hydra-Processing-Time`. Replies without `Server` and
+`Date`, with `Connection: close`, are accepted.
+
 ## Hydra values
 
 Each value is a type byte followed by its data; integers are big-endian (v).
@@ -79,6 +85,10 @@ Each value is a type byte followed by its data; integers are big-endian (v).
 - `profile/get` and `profile/update` requests start with the account id (the SteamID64) as a
   `0x0D` value, followed by the list of field names or the map of changes (v).
 - `profile/update` is acknowledged with the single byte `01` (v).
+
+(v) With the mod's replies, the game made the same calls as with the emulator, all three SOAP
+actions included. The main menu shows its online features as locked rather than an error, as it
+also did with the emulator.
 
 ## What the mod keeps and answers
 
@@ -103,4 +113,7 @@ The profile field `timestamp_scrap_rewarded` drives the reward.
   [executable.md](executable.md)), which is (i) what the answer `"0"` gives.
 - On `profile/update` the game sends the UTC time as text, `YYYYMMDDHHmmss` (v). The emulator
   stores its own current time instead.
-- Tried in game: answering `"0"` led to Scrap Crew resources right after a save load.
+- Tried in game, with the emulator and with this mod: answering `"0"` led to Scrap Crew
+  resources right after a save load, and the game then sent the reward time to record. With this
+  mod the grant was 30 scrap for each Scrap Crew upgrade; (?) whether that is the maximum or
+  what 300 minutes give.

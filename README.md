@@ -6,7 +6,10 @@ It needs no server, certificate or network change.
 
 ## Status
 
-**Experimental: not yet tried in game.** It passes its offline tests.
+**Experimental.** In a first test on Windows, loading a save granted Scrap Crew resources. Later
+rewards and longer play have not been tried.
+
+![Scrap Crew rewards shown in game](media/ingame-scrapcrew-rewards.png)
 
 ## What it does
 
@@ -14,7 +17,7 @@ The game asks two online hosts about the Scrap Crew reward. The DLL answers thos
 itself, inside the game process, through a listener reachable only from your own PC. The time of
 the last reward is measured by your PC's clock and kept in a file in the game folder.
 
-The game is therefore meant to stop contacting those two hosts. Without the mod it still sends your
+The game therefore no longer contacts those two hosts. Without the mod it still sends your
 SteamID and a Steam ticket to `cls.psn.turbine.com`. Other connections are passed to Windows
 unchanged.
 

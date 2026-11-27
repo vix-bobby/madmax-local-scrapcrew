@@ -3,10 +3,10 @@
 Windows loads a `winhttp.dll` found in the game folder instead of the system's one, so the
 game's imports bind to the proxy without any hook or any wait for the executable to unpack.
 
-Tried in game on Windows, forwarding and logging only: the game's WinHTTP calls go through the
-proxy, which is loaded next to the system DLL, and a launch with a save load showed no crash or
-added delay (v). **The listener and the redirection have not been tried in game.** What follows
-comes from the test programs (`test/`) unless said otherwise.
+Tried in game on Windows (v): the game's WinHTTP calls go through the proxy, which is loaded
+next to the system DLL; the calls to its two hosts are answered by the listener, with no crash,
+added delay, or firewall or antivirus prompt seen. What follows comes from the test programs
+(`test/`) unless said otherwise.
 
 ## How it works
 
