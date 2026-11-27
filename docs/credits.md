@@ -13,7 +13,12 @@ traffic with it:
 - the rule for `timestamp_scrap_rewarded`: the value sent back, and the server's own time stored
   on update
 
-No code from it is in this repository yet. A file that comes to contain code ported from it says
-so at its top and is listed here.
+Code that follows it, rewritten in C. A file holding such code says so at its top:
+
+| File | What follows the emulator |
+|------|---------------------------|
+| `src/responder.c` | profile, feed and SOAP replies; the reward timestamp rule |
+
+The listener, the proxy and the redirection are this project's own.
 
 This project is licensed GPL-3.0-or-later, like the emulator.

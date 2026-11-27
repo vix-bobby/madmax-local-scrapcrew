@@ -3,9 +3,10 @@
 Windows loads a `winhttp.dll` found in the game folder instead of the system's one, so the
 game's imports bind to the proxy without any hook or any wait for the executable to unpack.
 
-Tried in game on Windows: the game's WinHTTP calls go through the proxy, which is loaded next
-to the system DLL, and a launch with a save load showed no crash or added delay (v). The rest
-comes from the test program (`test/harness.c`) unless said otherwise.
+Tried in game on Windows, forwarding and logging only: the game's WinHTTP calls go through the
+proxy, which is loaded next to the system DLL, and a launch with a save load showed no crash or
+added delay (v). **The listener and the redirection have not been tried in game.** What follows
+comes from the test programs (`test/`) unless said otherwise.
 
 ## How it works
 
@@ -17,6 +18,21 @@ comes from the test program (`test/harness.c`) unless said otherwise.
 - Status callbacks are replaced by trampolines that log, then call the original.
   `WinHttpSetStatusCallback` still returns the caller's own previous callback.
 - The DLL pins itself, since WinHTTP keeps pointers to those trampolines.
+
+## Answering the two hosts
+
+- `WinHttpConnect` to `blackjack.hydra.agoragames.com` or `cls.psn.turbine.com` is turned into a
+  connection to the listener: `127.0.0.1`, on a port Windows picks (`src/server.c`). The listener
+  starts at the first such connection. If it cannot start, the call is passed on unchanged.
+- Requests on such a connection lose `WINHTTP_FLAG_SECURE`, so there is no TLS and no
+  certificate. Real WinHTTP still produces every status callback.
+- They are also set to use no proxy. (v) With a named proxy configured, requests to `127.0.0.1`
+  reached the listener even without that setting; (?) other proxy configurations.
+- (v) `WINHTTP_OPTION_SECURITY_FLAGS`, which the game sets on SOAP requests, is accepted on a
+  request without TLS.
+- Redirection changes the `Host` header, so the listener tells the hosts apart by path.
+- The replies are in `src/responder.c`; unknown requests get status 404.
+- Any program on the same PC can reach the listener while the game runs.
 
 ## Handle values
 

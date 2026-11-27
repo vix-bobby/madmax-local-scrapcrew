@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
- * Wrappers for the functions the game imports: log the call, pass it on unchanged, log the
- * result. src/winhttp.def exports hk_Name as Name.
+ * Wrappers for the functions the game imports: log the call, pass it on, log the result.
+ * src/winhttp.def exports hk_Name as Name. Only calls for the game's two online hosts are
+ * changed: they go to the listener inside this DLL, without TLS and without any proxy.
  *
  * Request and response bodies are never logged, nor are query strings, credentials or cookies.
  *
@@ -16,6 +17,8 @@
 #include <string.h>
 
 #include "proxy.h"
+#include "redirect.h"
+#include "server.h"
 
 #define REAL(name) ((__typeof__(&name))real_export(EXPORT_##name))
 #define TEXT_SIZE 1024
@@ -228,6 +231,7 @@ HINTERNET WINAPI hk_WinHttpOpen(LPCWSTR agent, DWORD access, LPCWSTR proxy, LPCW
              flags & WINHTTP_FLAG_ASYNC ? " (ASYNC)" : "",
              module_of(m, sizeof m, __builtin_return_address(0)));
     HINTERNET session = REAL(WinHttpOpen)(agent, access, proxy, bypass, flags);
+    redirect_forget(session);
     LOG_RESULT("WinHttpOpen", session, session);
     return session;
 }
@@ -239,8 +243,20 @@ HINTERNET WINAPI hk_WinHttpConnect(HINTERNET session, LPCWSTR server, INTERNET_P
 
     log_line("WinHttpConnect(%p) \"%s\" port %u", session, text(s, sizeof s, server, (DWORD)-1),
              (unsigned)port);
-    HINTERNET connection = REAL(WinHttpConnect)(session, server, port, reserved);
+    unsigned short local = redirect_host(server) ? server_port() : 0;
+    HINTERNET connection = REAL(WinHttpConnect)(session, local ? L"127.0.0.1" : server,
+                                                local ? local : port, reserved);
     LOG_RESULT("WinHttpConnect", connection, connection);
+    redirect_forget(connection);
+    if (local && connection) {
+        if (redirect_remember(connection)) {
+            log_line("  redirected to the listener");
+        } else { /* no room to keep track of it: leave it as the caller asked */
+            log_line("  too many connections: NOT redirected");
+            REAL(WinHttpCloseHandle)(connection);
+            connection = REAL(WinHttpConnect)(session, server, port, reserved);
+        }
+    }
     return connection;
 }
 
@@ -254,9 +270,18 @@ HINTERNET WINAPI hk_WinHttpOpenRequest(HINTERNET connection, LPCWSTR verb, LPCWS
              text(v, sizeof v, verb, (DWORD)-1), no_query(p, sizeof p, path, (DWORD)-1),
              text(ver, sizeof ver, version, (DWORD)-1), flags,
              flags & WINHTTP_FLAG_SECURE ? " (SECURE)" : "");
-    HINTERNET request = REAL(WinHttpOpenRequest)(connection, verb, path, version, referrer,
-                                                 accept, flags);
+    int local = redirected(connection);
+    HINTERNET request = REAL(WinHttpOpenRequest)(
+        connection, verb, path, version, referrer, accept,
+        local ? flags & ~(DWORD)WINHTTP_FLAG_SECURE : flags);
     LOG_RESULT("WinHttpOpenRequest", request, request);
+    redirect_forget(request);
+    if (local && request) {
+        /* a configured proxy must not come between the game and the listener */
+        WINHTTP_PROXY_INFO direct = { WINHTTP_ACCESS_TYPE_NO_PROXY, NULL, NULL };
+        if (!REAL(WinHttpSetOption)(request, WINHTTP_OPTION_PROXY, &direct, sizeof direct))
+            log_line("  cannot turn the proxy off, error %lu", GetLastError());
+    }
     return request;
 }
 
@@ -405,6 +430,7 @@ BOOL WINAPI hk_WinHttpReadData(HINTERNET request, LPVOID buffer, DWORD size, LPD
 BOOL WINAPI hk_WinHttpCloseHandle(HINTERNET handle)
 {
     log_line("WinHttpCloseHandle(%p)", handle);
+    redirect_forget(handle); /* before the value can be reused */
     BOOL ok = REAL(WinHttpCloseHandle)(handle);
     LOG_RESULT("WinHttpCloseHandle", handle, ok);
     return ok;

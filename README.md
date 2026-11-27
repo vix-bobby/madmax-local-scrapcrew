@@ -2,11 +2,21 @@
 
 A drop-in `winhttp.dll` that aims to restore Scrap Crew income in Mad Max (2015, PC) now that
 the publisher's online services are gone. It adds files to the game folder and changes none.
+It needs no server, certificate or network change.
 
 ## Status
 
-**Not usable yet: it does not restore Scrap Crew income.** The current DLL passes every call to
-the system's WinHTTP and logs what the game sends through it.
+**Experimental: not yet tried in game.** It passes its offline tests.
+
+## What it does
+
+The game asks two online hosts about the Scrap Crew reward. The DLL answers those requests
+itself, inside the game process, through a listener reachable only from your own PC. The time of
+the last reward is measured by your PC's clock and kept in a file in the game folder.
+
+The game is therefore meant to stop contacting those two hosts. Without the mod it still sends your
+SteamID and a Steam ticket to `cls.psn.turbine.com`. Other connections are passed to Windows
+unchanged.
 
 ## Build
 
@@ -23,11 +33,15 @@ The game folder is the one holding `MadMax.exe`. If it already has a `winhttp.dl
 belongs to another mod: do not overwrite it.
 
 - Install: copy `build/winhttp.dll` into the game folder.
-- Remove: delete `winhttp.dll` and `madmax_scrapcrew.log` from the game folder.
+- Remove: delete `winhttp.dll`, `madmax_scrapcrew.log` and `madmax_scrapcrew.dat` from the game
+  folder.
 
-The DLL writes `madmax_scrapcrew.log` next to itself, or into `%TEMP%` if that folder is
-read-only. The log is overwritten at each launch. It holds host names, request paths and headers,
-but no request or response bodies, query strings, cookies or authorization headers.
+The DLL writes two files next to itself, or into `%TEMP%` if that folder is read-only:
+
+- `madmax_scrapcrew.dat`, kept between launches: your SteamID, Steam display name, installed DLC
+  names and the time of the last reward. Deleting it makes the next reward count as the first.
+- `madmax_scrapcrew.log`, overwritten at each launch: host names, request paths and headers, but
+  no request or response bodies, query strings, cookies or authorization headers.
 
 Windows only so far. Steam Deck and Proton have not been tried.
 

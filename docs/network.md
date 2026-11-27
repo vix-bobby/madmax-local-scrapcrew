@@ -51,8 +51,9 @@ Hydra paths start with a numeric identifier, then (v):
 - `GET feed/get_items_by_channel/TOS%5F<country>/1/1/0` and the same with `PP%5F`
 - `POST event_log/create_events`
 
-(?) The emulator's documentation says the identifier varies between players and sessions, so a
-server should match the rest of the path.
+(i) The identifier names the game, not the player or the session: it stayed the same across
+launches months apart, and the emulator's documentation lists it among its examples. That
+documentation also says it varies, so the mod matches the rest of the path.
 
 SOAP paths (v): `/CLS/WbAccountManagement.asmx`, `/CLS/WbSubscriptionManagement.asmx`,
 `/CLS/AmsAuthentication.asmx`, with a `SOAPAction` header and `text/xml`.
@@ -79,13 +80,27 @@ Each value is a type byte followed by its data; integers are big-endian (v).
   `0x0D` value, followed by the list of field names or the map of changes (v).
 - `profile/update` is acknowledged with the single byte `01` (v).
 
+## What the mod keeps and answers
+
+`src/responder.c` follows the replies above, with these choices:
+
+- A profile exists once the game has created it; until then `get_by_platform_account_id` gets
+  an empty map. Another account id starts over.
+- Only the display name, the DLC list and the age group are kept. A 32-bit age group is returned
+  as 64 bits (`0x0A`), as in the reply the game accepted.
+- `updated_at` is the time of the last create or update. (i) The game reads it as the server's
+  current time.
+- Feed fields are answered with empty texts, the terms and privacy channels with an empty array.
+- Only the three SOAP actions seen are answered.
+
 ## The reward timestamp
 
 The profile field `timestamp_scrap_rewarded` drives the reward.
 
 - On `profile/get` the server answers with text: `2147483647 - seconds since the last reward`,
-  or `"0"` if there never was one. The game subtracts it from `2147483647` (v), so `"0"` means
-  the longest possible wait.
+  or `"0"` if there never was one. The game subtracts a received number from `2147483647` (v).
+  A number of zero is a special case: the game then counts 300 minutes (v, see
+  [executable.md](executable.md)), which is (i) what the answer `"0"` gives.
 - On `profile/update` the game sends the UTC time as text, `YYYYMMDDHHmmss` (v). The emulator
   stores its own current time instead.
 - Tried in game: answering `"0"` led to Scrap Crew resources right after a save load.

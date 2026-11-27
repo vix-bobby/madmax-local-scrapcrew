@@ -3,6 +3,9 @@
  * winhttp.dll proxy for Mad Max: loads the system winhttp.dll and passes every call to it.
  * Adds files only; changes no game file.
  *
+ * The calls for the game's two online hosts are sent to a listener inside this DLL instead
+ * (redirect.c, server.c).
+ *
  * Nothing happens in DllMain. The first call to any export initialises the mod.
  */
 #define WIN32_LEAN_AND_MEAN
@@ -13,14 +16,13 @@
 
 #include "proxy.h"
 
-#define PATH_CHARS 1024
 #define LOG_NAME L"madmax_scrapcrew.log"
 #define LOG_LIMIT (4 * 1024 * 1024)
 
 static HMODULE self;
 static INIT_ONCE once = INIT_ONCE_STATIC_INIT;
 static CRITICAL_SECTION log_lock;
-static wchar_t log_path[PATH_CHARS];
+static wchar_t log_path[PATH_CHARS], mod_dir[PATH_CHARS];
 static long log_size;
 static int pinned_ok;
 
@@ -78,6 +80,7 @@ static int start_log(const wchar_t *dir)
     if (!(f = _wfopen(log_path, L"w")))
         return 0;
     fclose(f);
+    wcscpy(mod_dir, dir);
     return 1;
 }
 
@@ -139,6 +142,15 @@ int stays_loaded(void)
 {
     ensure_initialised();
     return pinned_ok;
+}
+
+int mod_file(wchar_t *out, const wchar_t *name)
+{
+    ensure_initialised();
+    if (!mod_dir[0] || _snwprintf(out, PATH_CHARS, L"%ls%ls", mod_dir, name) < 0)
+        return 0;
+    out[PATH_CHARS - 1] = L'\0';
+    return 1;
 }
 
 const char *winhttp_role(HMODULE module)

@@ -26,7 +26,9 @@ requests, and `0x1429aaab0` (mask `0x007e0000`) on the session without agent nam
 - (v) The game script `scrap_crew.gsrc` has a node bound by name to `GetScrapCrewReward`, the
   function at `0x141ea2930`.
 - (v) That function calls `0x141d9b520`, which computes the elapsed whole minutes as
-  `([manager+0x1370] - [manager+0x1374]) / 60` once the profile request has completed.
+  `([manager+0x1370] - [manager+0x1374]) / 60` once the profile request has completed. If
+  `[manager+0x1374]` is zero it uses 300 minutes instead. (i) That is the case of a reward
+  never given, which the server reports as `"0"`.
 - (v) Only if more than 10 minutes have elapsed does it call `0x141d83d10`, which builds the
   request that records a new reward time.
 - (v) After a real exchange, `[manager+0x1374]` held the number the server sent and

@@ -297,10 +297,258 @@ static void test_async(const wchar_t *host, INTERNET_PORT port, int expect_succe
     CloseHandle(x.done);
 }
 
+/* ---------------------------------------------------------------- the game's two hosts */
+
+/* a proxy that does not exist: nothing sent to the two hosts can leave the machine, and only a
+ * request that was redirected and told to use no proxy can succeed */
+#define DEAD_PROXY L"127.0.0.1:9"
+#define HYDRA L"blackjack.hydra.agoragames.com"
+#define SOAP L"cls.psn.turbine.com"
+/* made-up account 76561190000000001 */
+#define ACCOUNT_TEXT "\x0e\x00\x00\x00\x11" "76561190000000001"
+#define ACCOUNT_ID "\x0d\x01\x0f\xff\xff\x25\x87\xfc\x01"
+#define SCRAP "\x0e\x00\x00\x00\x18" "timestamp_scrap_rewarded"
+#define BYTES(s) s, (DWORD)sizeof s - 1
+
+struct fetch {
+    HANDLE done, closed;
+    char body[8192];
+    DWORD status, got, error;
+    wchar_t type[64], accept[64], time[16], hydra_code[16];
+};
+
+static void CALLBACK on_fetch(HINTERNET handle, DWORD_PTR context, DWORD status, LPVOID info,
+                              DWORD length)
+{
+    struct fetch *f = (void *)context;
+    DWORD size = sizeof f->status;
+
+    if (!f)
+        return;
+    switch (status) {
+    case WINHTTP_CALLBACK_STATUS_SENDREQUEST_COMPLETE:
+        WinHttpReceiveResponse(handle, NULL);
+        break;
+    case WINHTTP_CALLBACK_STATUS_HEADERS_AVAILABLE:
+        WinHttpQueryHeaders(handle, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, NULL,
+                            &f->status, &size, NULL);
+        size = sizeof f->type;
+        WinHttpQueryHeaders(handle, WINHTTP_QUERY_CONTENT_TYPE, NULL, f->type, &size, NULL);
+        size = sizeof f->accept;
+        WinHttpQueryHeaders(handle, WINHTTP_QUERY_CUSTOM, L"Accept", f->accept, &size, NULL);
+        size = sizeof f->time;
+        WinHttpQueryHeaders(handle, WINHTTP_QUERY_CUSTOM, L"X-Hydra-Processing-Time", f->time,
+                            &size, NULL);
+        size = sizeof f->hydra_code;
+        WinHttpQueryHeaders(handle, WINHTTP_QUERY_CUSTOM, L"X-Hydra-Error-Code", f->hydra_code,
+                            &size, NULL);
+        WinHttpReadData(handle, f->body, 4096, NULL);
+        break;
+    case WINHTTP_CALLBACK_STATUS_READ_COMPLETE:
+        f->got += length;
+        if (length && f->got + 4096 <= sizeof f->body)
+            WinHttpReadData(handle, f->body + f->got, 4096, NULL);
+        else
+            SetEvent(f->done);
+        break;
+    case WINHTTP_CALLBACK_STATUS_REQUEST_ERROR:
+        f->error = ((WINHTTP_ASYNC_RESULT *)info)->dwError;
+        SetEvent(f->done);
+        break;
+    case WINHTTP_CALLBACK_STATUS_HANDLE_CLOSING:
+        SetEvent(f->closed);
+        break;
+    }
+}
+
+static int url_starts(HINTERNET request, const wchar_t *start)
+{
+    wchar_t url[512];
+    DWORD size = sizeof url;
+
+    return WinHttpQueryOption(request, WINHTTP_OPTION_URL, url, &size)
+           && !wcsncmp(url, start, wcslen(start));
+}
+
+/* one call, made the way the game makes it */
+static void fetch(HINTERNET session, const wchar_t *host, const wchar_t *verb,
+                  const wchar_t *path, const wchar_t *headers, const char *body, DWORD length,
+                  struct fetch *f)
+{
+    HINTERNET connection = WinHttpConnect(session, host, 443, 0);
+    HINTERNET request = WinHttpOpenRequest(connection, verb, path, NULL, NULL, NULL,
+                                           WINHTTP_FLAG_SECURE);
+    DWORD ignore = SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_CN_INVALID
+                   | SECURITY_FLAG_IGNORE_CERT_DATE_INVALID;
+
+    memset(f, 0, sizeof *f);
+    f->done = CreateEventW(NULL, TRUE, FALSE, NULL);
+    f->closed = CreateEventW(NULL, TRUE, FALSE, NULL);
+    CHECK(connection && request);
+    if (!wcscmp(host, SOAP))
+        CHECK(WinHttpSetOption(request, WINHTTP_OPTION_SECURITY_FLAGS, &ignore, sizeof ignore));
+    WinHttpSetStatusCallback(request, on_fetch, WINHTTP_CALLBACK_FLAG_ALL_NOTIFICATIONS, 0);
+    if (WinHttpSendRequest(request, headers, headers ? (DWORD)-1 : 0, (void *)body, length,
+                           length, (DWORD_PTR)f))
+        CHECK(WaitForSingleObject(f->done, 30000) == WAIT_OBJECT_0);
+    else
+        f->error = GetLastError();
+    WinHttpCloseHandle(request);
+    CHECK(WaitForSingleObject(f->closed, 10000) == WAIT_OBJECT_0);
+    WinHttpCloseHandle(connection);
+    CloseHandle(f->done);
+    CloseHandle(f->closed);
+}
+
+static struct fetch answer;
+
+static int hydra(HINTERNET session, const wchar_t *route, const char *body, DWORD length,
+                 const char *expected, DWORD expected_length)
+{
+    wchar_t path[256];
+
+    _snwprintf(path, 256, L"/984815842354416438/%ls", route);
+    fetch(session, HYDRA, body ? L"POST" : L"GET", path, L"x-ag-ticket: 0801", body, length,
+          &answer);
+    return !answer.error && answer.status == 200 && !wcscmp(answer.hydra_code, L"200")
+           && !wcscmp(answer.type, L"application/x-hydra-binary")
+           && !wcscmp(answer.accept, answer.type) && answer.time[0]
+           && answer.got == expected_length
+           && !memcmp(answer.body, expected, expected_length);
+}
+
+#define HYDRA_CALL(route, body, expected)                                                        \
+    CHECK(hydra(session, route, BYTES(body), BYTES(expected)))
+
+static DWORD WINAPI parallel_call(void *session)
+{
+    struct fetch f;
+
+    fetch(session, HYDRA, L"POST", L"/1/event_log/create_events", NULL, "x", 1, &f);
+    return !f.error && f.status == 200 && f.got == 1;
+}
+
+/* the reward value of profile/get: "0" if never rewarded, else close to the largest number */
+static long long reward_value(HINTERNET session)
+{
+    static const char query[] = ACCOUNT_ID "\x08\x00\x00\x00\x01" SCRAP;
+    const DWORD value_at = 5 + 29 + 5; /* map, name, text length */
+
+    fetch(session, HYDRA, L"POST", L"/1/profile/get", NULL, BYTES(query), &answer);
+    if (answer.error || answer.status != 200 || answer.got <= value_at)
+        return -1;
+    answer.body[answer.got] = '\0';
+    return _atoi64(answer.body + value_at);
+}
+
+static void test_redirect(int again)
+{
+    HINTERNET session = WinHttpOpen(L"harness", WINHTTP_ACCESS_TYPE_NAMED_PROXY, DEAD_PROXY, NULL,
+                                    WINHTTP_FLAG_ASYNC);
+
+    CHECK(session);
+    /* if this fails, stop: the other calls have nowhere to go */
+    if (!hydra(session, L"auth/pc_steam", BYTES("\x0e\x00\x00\x00\x04" "0802"),
+               BYTES("\x0e\x00\x00\x00\x04" "0801"))) {
+        printf("FAIL: the call to the Hydra host was not answered here (error %lu, status %lu)\n",
+               answer.error, answer.status);
+        failures++;
+        return;
+    }
+
+    if (again) { /* a second launch: the profile and the reward time were kept */
+        long long value = reward_value(session);
+        CHECK(value > 2147483647LL - 600 && value <= 2147483647LL);
+        WinHttpCloseHandle(session);
+        return;
+    }
+
+    HYDRA_CALL(L"profile/get_by_platform_account_id",
+               ACCOUNT_TEXT "\x08\x00\x00\x00\x01\x0e\x00\x00\x00\x04" "guid",
+               "\x0c\x00\x00\x00\x00");
+    HYDRA_CALL(L"profile/create",
+               "\x0c\x00\x00\x00\x02"
+               "\x0e\x00\x00\x00\x0c" "display_name" "\x0e\x00\x00\x00\x04" "Test"
+               "\x0e\x00\x00\x00\x13" "platform_account_id" ACCOUNT_TEXT,
+               ACCOUNT_ID);
+    CHECK(hydra(session, L"feed/get_items_by_channel/TOS%5FZZ/1/1/0", NULL, 0,
+                BYTES("\x08\x00\x00\x00\x00")));
+    CHECK(reward_value(session) == 0);
+    HYDRA_CALL(L"profile/update",
+               ACCOUNT_ID "\x0c\x00\x00\x00\x01" SCRAP "\x0e\x00\x00\x00\x01" "1", "\x01");
+    long long value = reward_value(session);
+    CHECK(value > 2147483647LL - 60 && value <= 2147483647LL);
+
+    static const char lookup[] = "<soap:Body><ams:LookupWbid><ams:consoleId>76561190000000001"
+                                 "</ams:consoleId></ams:LookupWbid></soap:Body>";
+    fetch(session, SOAP, L"POST", L"/CLS/WbAccountManagement.asmx",
+          L"Content-Type: text/xml;charset=UTF-8\r\n"
+          L"SOAPAction: http://www.turbine.com/SE/AMS/LookupWbid",
+          BYTES(lookup), &answer);
+    CHECK(!answer.error && answer.status == 200);
+    CHECK(!wcscmp(answer.type, L"text/xml; charset=utf-8"));
+    answer.body[answer.got] = '\0';
+    CHECK(strstr(answer.body, "STEAM_76561190000000001@example.com"));
+
+    fetch(session, HYDRA, L"POST", L"/1/nothing/here", NULL, "x", 1, &answer);
+    CHECK(!answer.error && answer.status == 404 && !answer.got);
+
+    /* a body larger than one packet */
+    static char large[100000];
+    fetch(session, HYDRA, L"POST", L"/1/event_log/create_events", NULL, large, sizeof large,
+          &answer);
+    CHECK(!answer.error && answer.status == 200 && answer.got == 1);
+
+    HANDLE threads[16];
+    for (int i = 0; i < 16; i++)
+        threads[i] = CreateThread(NULL, 0, parallel_call, session, 0, NULL);
+    WaitForMultipleObjects(16, threads, TRUE, 60000);
+    for (int i = 0; i < 16; i++) {
+        DWORD result = 0;
+        GetExitCodeThread(threads[i], &result);
+        CHECK(result == 1);
+        CloseHandle(threads[i]);
+    }
+
+    /* every other host is left alone: this one still goes to the dead proxy */
+    fetch(session, L"other.invalid", L"GET", L"/", NULL, NULL, 0, &answer);
+    CHECK(answer.error);
+    WinHttpCloseHandle(session);
+}
+
+/* a handle value that led to the listener, reused for something else, must not lead there */
+static void test_handle_reuse(INTERNET_PORT port)
+{
+    HINTERNET session = WinHttpOpen(L"harness", WINHTTP_ACCESS_TYPE_NO_PROXY, NULL, NULL, 0);
+    HINTERNET seen[100];
+    int reused = 0;
+
+    for (int i = 0; i < 100; i++) {
+        HINTERNET ours = WinHttpConnect(session, HYDRA, 443, 0);
+        HINTERNET request = WinHttpOpenRequest(ours, L"GET", L"/", NULL, NULL, NULL,
+                                               WINHTTP_FLAG_SECURE);
+        CHECK(url_starts(request, L"http://127.0.0.1"));
+        seen[i] = ours;
+        WinHttpCloseHandle(request);
+        WinHttpCloseHandle(ours);
+
+        HINTERNET other = WinHttpConnect(session, L"127.0.0.1", port, 0);
+        request = WinHttpOpenRequest(other, L"GET", L"/", NULL, NULL, NULL, WINHTTP_FLAG_SECURE);
+        CHECK(url_starts(request, L"https://127.0.0.1"));
+        for (int k = 0; k <= i; k++)
+            reused += seen[k] == other;
+        WinHttpCloseHandle(request);
+        WinHttpCloseHandle(other);
+    }
+    printf("handle values reused by an unrelated connection: %d times\n", reused);
+    WinHttpCloseHandle(session);
+}
+
 /* ---------------------------------------------------------------- main */
 
-int main(void)
+int main(int argc, char **argv)
 {
+    int again = argc > 1 && !strcmp(argv[1], "again");
     wchar_t own[1024], loaded[1024], system_path[MAX_PATH + 16];
     HMODULE proxy = GetModuleHandleW(L"winhttp.dll");
 
@@ -311,6 +559,12 @@ int main(void)
     if (failures || _wcsnicmp(own, loaded, wcslen(own))) {
         printf("FAIL: the winhttp.dll in use is not the one next to the test program\n");
         return 1;
+    }
+
+    if (again) {
+        test_redirect(1);
+        printf(failures ? "%d FAILED\n" : "second launch tests passed\n", failures);
+        return failures != 0;
     }
 
     test_stubs();
@@ -325,6 +579,8 @@ int main(void)
     test_sync(port);
     test_async(L"127.0.0.1", port, 1);
     test_async(L"blackjack.hydra.invalid", 443, 0);
+    test_redirect(0);
+    test_handle_reuse(port);
 
     printf(failures ? "%d FAILED\n" : "all tests passed\n", failures);
     return failures != 0;

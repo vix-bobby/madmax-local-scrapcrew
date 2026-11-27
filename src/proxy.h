@@ -6,7 +6,8 @@
 
 #include "exports.h"
 
-#define MOD_VERSION "0.1.0"
+#define MOD_VERSION "0.2.0"
+#define PATH_CHARS 1024
 
 enum {
 #define X(index, name) EXPORT_##name = index,
@@ -24,6 +25,10 @@ int stays_loaded(void);
 /* "proxy" or "system" if `module` is this DLL or the real winhttp.dll, else NULL. Both have the
  * same file name. */
 const char *winhttp_role(HMODULE module);
+
+/* The full path of one of the mod's files, which live in the same folder as the log.
+ * `out` holds PATH_CHARS characters. Returns 0 if there is no usable folder. */
+int mod_file(wchar_t *out, const wchar_t *name);
 
 /* One line in the log. Keeps GetLastError() unchanged. */
 void log_line(const char *format, ...) __attribute__((format(gnu_printf, 1, 2)));
