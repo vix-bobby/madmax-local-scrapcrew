@@ -3,10 +3,10 @@
 Windows loads a `winhttp.dll` found in the game folder instead of the system's one, so the
 game's imports bind to the proxy without any hook or any wait for the executable to unpack.
 
-Tried in game on Windows, with the detailed log (v): the game's WinHTTP calls go through the proxy, which is loaded
-next to the system DLL; the calls to its two hosts are answered by the listener, with no crash,
-added delay, or firewall or antivirus prompt seen. What follows comes from the test programs
-(`test/`) unless said otherwise.
+Tried in game on Windows, with both builds (v): the game's WinHTTP calls go through the proxy,
+which is loaded next to the system DLL; the calls to its two hosts are answered by the listener,
+with no crash, added delay, or firewall or antivirus prompt seen. On a Steam Deck, see
+[Proton](#proton). What follows comes from the test programs (`test/`) unless said otherwise.
 
 ## How it works
 
@@ -39,22 +39,34 @@ added delay, or firewall or antivirus prompt seen. What follows comes from the t
 
 ## Proton
 
-Not tried in game. (v) Read in the source of Valve's Wine, branch `proton_10.0`:
+Tried in game on a Steam Deck with Proton 11.0-3, with the launch option
+`WINEDLLOVERRIDES="winhttp=n,b"` (v): the calls to the two hosts are answered by the listener,
+Scrap Crew rewards arrive and their challenges progress.
 
-- A `winhttp.dll` in the game folder is used only with the override `winhttp=n,b`. The override
-  applies by file name, so it also covers the system copy the proxy loads: that one is Wine's
-  builtin, which `n` alone refuses.
+What follows was read in the source of Valve's Wine, branch `proton_10.0` (v). Proton replaces
+Windows' WinHTTP with Wine's own.
+
+### Why the launch option
+
+- Without an override, Proton loads its own `winhttp.dll`, not the one in the game folder.
+- The override applies by file name, so it also covers the system copy that the proxy loads. That
+  copy is Wine's builtin: `n,b` allows it, `n` alone refuses it.
 - `winhttp` is not among the known DLLs that `loader/wine.inf.in` registers, which would be
   loaded from the system folder whatever the override.
-- `WINEDLLOVERRIDES` takes priority over the prefix's registry overrides.
-- Wine exports `DllRegisterServer` and `DllUnregisterServer`, which the Windows export list used
-  here lacks. (i) Nothing loads the copy in the game folder to call them.
-- `WINHTTP_OPTION_PROXY` on a request is accepted and ignored. A session with the default proxy
-  setting takes its proxy from the registry or the `http_proxy` variable and sends every host
-  through it, `127.0.0.1` included unless bypassed. (i) So the mod does not work with a proxy
-  configured in the prefix or in `http_proxy`.
-- The security flags the game sets are accepted on a request without TLS, and the listener's
-  socket option `SO_EXCLUSIVEADDRUSE` is supported.
+- `WINEDLLOVERRIDES` takes priority over the overrides stored in the prefix.
+
+### Known limitation: a configured proxy
+
+This is about an HTTP proxy server configured for the network, not about the DLL. The DLL asks
+for no HTTP proxy on each redirected request (`WINHTTP_OPTION_PROXY`). Wine accepts that setting
+and ignores it. The game's sessions ask for the default HTTP proxy, which Wine takes from the
+prefix's registry or from the `http_proxy` variable, and then uses for every host not on a bypass
+list, `127.0.0.1` included.
+
+(i) With an HTTP proxy configured there, the game's calls would go to it instead of the listener,
+and no reward would arrive. Without one, which is the case that was tried, nothing differs. (?)
+Not tried with an HTTP proxy. A possible remedy, not implemented, is to turn it off on the game's
+two sessions before they connect.
 
 ## Handle values
 

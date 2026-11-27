@@ -34,7 +34,8 @@ Seen in game through the proxy's log, over one launch with a save load (v):
 
 ## How the game uses WinHTTP
 
-Same launch (v). (?) What differs once requests succeed.
+Seen in that same launch (v). With the calls answered by the mod, a request goes the same way, and
+the game also reads the [reply headers](#reply-headers).
 
 - Three sessions, all `WINHTTP_FLAG_ASYNC` with the default proxy setting: `Agora Hydra SDK
   (Win32)`, `WBNC SDK (WinHttp)`, and one without agent name that made no connection.
@@ -129,3 +130,5 @@ The profile field `timestamp_scrap_rewarded` drives the reward.
   stores its own current time instead.
 - Tried in game, with the emulator and with this mod: answering `"0"` led to Scrap Crew
   resources right after a save load, and the game then sent the reward time to record.
+- Tried in game with this mod: later rewards follow on a save load, and both Scrap Crew
+  challenges progress again.

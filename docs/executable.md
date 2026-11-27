@@ -20,10 +20,18 @@ Addresses below hold for this file only.
 - (v) The large sections `.xpdata` (about 69 MB) and `.xtext` carry no execute flag in the file,
   and the start of `.xpdata` has an entropy of 7.8 bits per byte. Only the small `.trace` and
   `.xcode` sections are executable, and the entry point is in `.xcode`.
-- Tried: disassembling the file as shipped (Ghidra) yields nonsense. This is a dead end.
+- Tried: disassembling the file as shipped (Ghidra) yields nonsense. This is a dead end; work on
+  a memory dump instead.
 - (v) In a memory dump taken at the main menu the code is ordinary x64: function prologues are
   there and the classes' virtual methods disassemble. A dump taken after loading a save gave the
   same code at every address examined.
+- Tried on the dump: small [Capstone](https://www.capstone-engine.org/) scripts, started at
+  addresses found through class names and call searches, read the code well. A linear pass can
+  lose alignment after jump targets: restart it at each target.
+- Tried on the dump: Ghidra's full analysis of the raw 69 MB image did not finish. Importing it
+  without analysis, at base `0x140000000`, and disassembling only from exact instruction
+  addresses worked quickly and confirmed the callers found with the scripts. Starting between
+  instructions finds nothing.
 - (v) Some constants stay obfuscated in the dump: a small number is built from two large ones
   (for example `mov ecx, 0x90c3a20f` then `lea ecx, [rcx+0x6f3c5e01]` gives 16), so searching
   for it as an immediate fails.

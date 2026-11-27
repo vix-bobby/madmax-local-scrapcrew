@@ -5,7 +5,7 @@
 [madmax-2015-offline](https://github.com/3ek/madmax-2015-offline), by its contributors,
 GPL-3.0-or-later, commit `fee927e`.
 
-Taken from it so far, as knowledge, learned from its source and documentation and from the game's
+Taken from it as knowledge, learned from its source and documentation and from the game's
 traffic with it:
 
 - the hosts and request paths to answer

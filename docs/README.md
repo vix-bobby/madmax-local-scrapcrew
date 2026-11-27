@@ -24,7 +24,8 @@ Each file says what was and was not tried in game.
 | [Scrap Crew Challenge Workaround](https://www.nexusmods.com/madmax/mods/100) | Data override in `dropzone/` that points the Scrap Crew challenges at another counter; restores no income | Analysed only, not installed |
 | [Mad-Manager](https://github.com/y0xOFF/Mad-Manager) | Mod manager using the `dropzone/` folder | No |
 | [Gibbed.MadMax](https://github.com/gibbed/Gibbed.MadMax) | Unpacking the game's archives and converting its files | Yes: unpacking, property and ADF conversion (the latter after changes, see [file-formats.md](file-formats.md)) |
-| [Ghidra](https://github.com/NationalSecurityAgency/ghidra) | Disassembly | Yes: useless on the executable as shipped (packed) |
+| [Ghidra](https://github.com/NationalSecurityAgency/ghidra) | Disassembly | Yes: useless on the executable as shipped (packed). Useful on a memory dump, when disassembly is started at known addresses; its full analysis of the dump did not finish. See [executable.md](executable.md#packed-code) |
+| [Capstone](https://www.capstone-engine.org/) | Disassembly library | Yes: scripts disassembling the memory dump did most of the code reading |
 | [mitmproxy](https://mitmproxy.org/) | Reading HTTPS traffic | Yes, through the system's WinHTTP proxy setting |
 | [Process Monitor](https://learn.microsoft.com/sysinternals/downloads/procmon) | Watching file and network activity | Yes: showed the online call at launch and no network activity on a save load against the dead servers |
 | [DebugView](https://learn.microsoft.com/sysinternals/downloads/debugview) | Reading debug output | Yes: nothing seen from the game |

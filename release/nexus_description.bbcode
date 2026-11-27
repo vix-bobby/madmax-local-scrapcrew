@@ -1,0 +1,64 @@
+[size=5][b]Mad Max (2015): local Scrap Crew[/b][/size]
+[b]Scrap Crew income again, without any server.[/b] Tried with the Steam version, on Windows and on a Steam Deck.
+
+The game's online services were shut down and the Scrap Crews stopped gathering scrap. This drop-in [b]winhttp.dll[/b] answers the game's online calls on your own computer.
+
+[size=4][b]Features[/b][/size]
+[list]
+[*][b]Scrap Crew income[/b] arrives again when you start the game and load a save, if more than 10 minutes have passed since the last reward. The first time with the mod, it arrives right away.
+[*]The challenges [b]A Penny Saved[/b] and [b]Dividend[/b] progress again.
+[*][b]The amounts are the game's own.[/b] The mod keeps the original game logic: it only tells the game how long ago the last reward was (measured by your computer's clock), and the game decides how much scrap that is worth.
+[*]No server, certificate, hosts file or network change. No game file is replaced.
+[*]The online features in the main menu show as locked. This is expected: the mod restores only the Scrap Crew.
+[/list]
+
+[size=4][b]Installation on Windows[/b][/size]
+[list=1]
+[*]In Steam, right-click Mad Max, then Manage, then Browse local files.
+[*]If there is already a winhttp.dll there, it belongs to another mod: do not overwrite it. The two cannot be used together.
+[*]Copy [b]winhttp.dll[/b] from the archive into that folder, next to MadMax.exe.
+[*]Start the game as usual.
+[/list]
+
+[size=4][b]Installation on Steam Deck and Linux (Proton)[/b][/size]
+[list=1]
+[*]The mod needs the Windows version of the game; the native Linux version cannot load it.
+[*]Open the game folder (on the Deck, in Desktop Mode). If it holds no MadMax.exe, force a Proton version in the game's Properties, under Compatibility, and let Steam download the Windows files.
+[*]Copy [b]winhttp.dll[/b] into that folder, next to MadMax.exe (do not overwrite another mod's).
+[*]In the game's Properties, set the launch options to:
+[code]WINEDLLOVERRIDES="winhttp=n,b" %command%[/code]
+Without this, Proton ignores the file. Do not shorten it to winhttp=n. If you already have launch options, put the WINEDLLOVERRIDES=... part in front of them and keep a single %command%.
+[*]Start the game.
+[/list]
+If you set up the madmax-2015-offline server before, remove its launch option and run its uninstall scripts: this mod needs none of it.
+
+[size=4][b]Uninstallation[/b][/size]
+[list=1]
+[*]Delete winhttp.dll, madmax_scrapcrew.log and madmax_scrapcrew.dat (and madmax_scrapcrew.dat.new, if there is one) from the game folder.
+[*]On Steam Deck / Linux, remove the WINEDLLOVERRIDES=... part from the launch options.
+[/list]
+Scrap already received stays in your save. Verifying the game files in Steam does not remove the mod.
+
+[size=4][b]Privacy[/b][/size]
+[list]
+[*]The game no longer contacts its two old online hosts. Without the mod, it still sends your SteamID and a Steam ticket to cls.psn.turbine.com.
+[*]The mod keeps [b]madmax_scrapcrew.dat[/b] in the game folder: your SteamID, Steam name, installed DLC names and the time of the last reward. Do not share it.
+[*][b]madmax_scrapcrew.log[/b] records what the mod did at the last launch, without request contents.
+[*]Both files go into %TEMP% if the game folder cannot be written to.
+[/list]
+
+[size=4][b]Good to know[/b][/size]
+[list]
+[*]Each computer has its own madmax_scrapcrew.dat. To keep a single count on two computers, copy it from the one used last to the other, with the game closed.
+[*]Deleting that file makes the next reward count as the first.
+[*]No log file after starting the game, neither in the game folder nor in %TEMP%, means the mod was not loaded: check the folder and, with Proton, the launch options.
+[*]With Proton, a proxy set in http_proxy or in the game's Proton prefix is expected to keep the mod from working (not tried).
+[*]Other stores than Steam and Linux systems other than the Steam Deck have not been tried.
+[*]An antivirus may flag the DLL, as it may any DLL placed in a game folder.
+[/list]
+
+[size=4][b]Credits[/b][/size]
+Built thanks to [url=https://github.com/3ek/madmax-2015-offline]madmax-2015-offline[/url], a server emulator by its contributors: this mod's knowledge of the game's online calls and of the reward rule comes from it, and the mod's replies follow it, rewritten in C.
+
+[size=4][b]Licence and source[/b][/size]
+GPL-3.0-or-later. Source code: <SOURCE URL>
