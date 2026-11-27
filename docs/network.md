@@ -1,9 +1,22 @@
 # Online calls
 
-Except in the next section, observed in game against
+Except in the two next sections, observed in game against
 [madmax-2015-offline](https://github.com/3ek/madmax-2015-offline), whose replies the game
 accepted. The replies are therefore that emulator's, not the original servers'. (?) Which calls
 and which reply fields the game really needs.
+
+## The original services
+
+- WB Games has ended Mad Max's online features. Its
+  [notice](https://wbgamessupport.wbgames.com/hc/en-us/articles/360058007413-Mad-Max-Status-Update)
+  says Scrap Crews no longer gather materials, and that the challenges "A Penny Saved" and
+  "Dividend" can no longer be completed.
+- The game's own description of the Scrap Crew says scrap is collected while you are not playing,
+  and that an online connection is needed to receive it.
+- (v) The game honours the system's WinHTTP proxy setting, and accepted an interception proxy's
+  certificate on the SOAP host. This is how its first request can be read.
+- (i) Besides Scrap Crews, Hydra served news, terms of service, account linking and the
+  "Opus War" leaderboards: see the class names in [executable.md](executable.md#online-classes).
 
 ## Without a replacement server
 
@@ -11,6 +24,7 @@ Seen in game through the proxy's log, over one launch with a save load (v):
 
 - One request to each host, then no other: no retry in the roughly three minutes observed.
 - The save load sent no Hydra request after the failed authentication.
+- No Scrap Crew scrap arrives, on a save load or over time.
 - Hydra: `auth/pc_steam` fails at name resolution (error 12007).
 - SOAP: `cls.psn.turbine.com` still resolves and answers. `LookupWbid` got status 500, after
   which the game read the body and closed the request. `WbSubscriptionManagement` and
@@ -115,15 +129,3 @@ The profile field `timestamp_scrap_rewarded` drives the reward.
   stores its own current time instead.
 - Tried in game, with the emulator and with this mod: answering `"0"` led to Scrap Crew
   resources right after a save load, and the game then sent the reward time to record.
-
-## The amount granted
-
-(v) Tried in game with this mod, on the save load:
-
-| Time counted | Scrap per Scrap Crew upgrade |
-|--------------|------------------------------|
-| never rewarded (the game counts 300 minutes) | 30 |
-| 16 minutes since the last reward | 1 |
-
-(i) One scrap per upgrade for each full 10 minutes. (?) Whether there is a maximum: it has not
-been tried with more than the never-rewarded case.

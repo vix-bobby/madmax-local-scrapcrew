@@ -21,6 +21,11 @@ The game therefore no longer contacts those two hosts. Without the mod it still 
 SteamID and a Steam ticket to `cls.psn.turbine.com`. Other connections are passed to Windows
 unchanged.
 
+## How much scrap
+
+The amounts are the game's own. The mod only tells the game how long ago the last reward was,
+as your PC's clock measures it; the game's unchanged code decides what that is worth.
+
 ## Build
 
 Needs `x86_64-w64-mingw32-gcc`. The tests also need WSL, to run a Windows program.
