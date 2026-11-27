@@ -71,7 +71,8 @@ its launch option and run its uninstall scripts: this mod needs none of it.
 ## Uninstall
 
 1. Delete from the game folder: `winhttp.dll`, `madmax_scrapcrew.log` and
-   `madmax_scrapcrew.dat` (and `madmax_scrapcrew.dat.new`, if there is one).
+   `madmax_scrapcrew.dat` (and `madmax_scrapcrew.dat.new`, if there is one). If you unpacked the
+   release archive there, delete its two `madmax_scrapcrew-*.txt` files too.
 2. With Proton, remove the `WINEDLLOVERRIDES=...` part from the launch options.
 
 Scrap already received stays in your save. Steam's "Verify integrity of game files" does not
@@ -109,6 +110,7 @@ Needs `x86_64-w64-mingw32-gcc`. The tests also need `gcc` and WSL, to run a Wind
 ./build.sh          # build/winhttp.dll
 ./build.sh trace    # also build/trace/winhttp.dll
 ./build.sh test     # build both and test
+./package.sh        # the release archive in dist/, from build/winhttp.dll
 ```
 
 The trace build is for investigating: its log also lists every WinHTTP call the game makes, with
@@ -127,4 +129,5 @@ this mod is possible. [What this project takes from it](docs/credits.md).
 
 ## Licence
 
-[GPL-3.0-or-later](LICENSE).
+Copyright vix-bobby. [GPL-3.0-or-later](LICENSE). Parts follow another project: see
+[credits](docs/credits.md).

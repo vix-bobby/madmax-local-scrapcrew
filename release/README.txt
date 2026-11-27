@@ -1,5 +1,5 @@
-Mad Max (2015): local Scrap Crew
-================================
+Mad Max (2015): local Scrap Crew 1.0.0
+======================================
 
 Brings back the Scrap Crew income that stopped when the game's online services were shut down.
 No server, certificate or network change. No game file is replaced.
@@ -37,7 +37,8 @@ uninstall scripts: this mod needs none of it.
 
 UNINSTALL
 1. Delete these from the game folder: winhttp.dll, madmax_scrapcrew.log and
-   madmax_scrapcrew.dat (and madmax_scrapcrew.dat.new, if there is one).
+   madmax_scrapcrew.dat (and madmax_scrapcrew.dat.new, if there is one). If you unpacked the
+   archive there, delete madmax_scrapcrew-README.txt and madmax_scrapcrew-LICENSE.txt too.
 2. On Steam Deck / Linux, remove the WINEDLLOVERRIDES=... part from the launch options.
 Scrap already received stays in your save. Steam's "verify integrity of game files" does not
 remove the mod.
@@ -78,4 +79,7 @@ This mod's knowledge of the game's online calls and of the reward rule comes fro
 mod's replies follow it, rewritten in C.
 
 LICENCE AND SOURCE
-GPL-3.0-or-later: see the LICENSE file. Source code: <SOURCE URL>
+Copyright vix-bobby; parts follow madmax-2015-offline, by its contributors (see CREDITS).
+GPL-3.0-or-later: you may share and adapt this mod under the same licence. See
+madmax_scrapcrew-LICENSE.txt. There is no warranty.
+Source code: https://github.com/vix-bobby/madmax-local-scrapcrew

@@ -6,7 +6,7 @@
 
 #include "exports.h"
 
-#define MOD_VERSION "0.3.0"
+#define MOD_VERSION "1.0.0"
 #define PATH_CHARS 1024
 
 enum {
