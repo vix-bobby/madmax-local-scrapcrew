@@ -6,7 +6,7 @@
 
 #include "exports.h"
 
-#define MOD_VERSION "0.2.0"
+#define MOD_VERSION "0.3.0"
 #define PATH_CHARS 1024
 
 enum {
@@ -32,5 +32,17 @@ int mod_file(wchar_t *out, const wchar_t *name);
 
 /* One line in the log. Keeps GetLastError() unchanged. */
 void log_line(const char *format, ...) __attribute__((format(gnu_printf, 1, 2)));
+
+/* The trace build (-DMOD_TRACE) also logs every WinHTTP call of the game and its callbacks. */
+#ifdef MOD_TRACE
+#define TRACING 1
+#else
+#define TRACING 0
+#endif
+#define trace_line(...)                                                                          \
+    do {                                                                                         \
+        if (TRACING)                                                                             \
+            log_line(__VA_ARGS__);                                                               \
+    } while (0)
 
 #endif

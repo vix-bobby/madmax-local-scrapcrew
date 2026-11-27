@@ -490,7 +490,7 @@ static void test_redirect(int again)
     answer.body[answer.got] = '\0';
     CHECK(strstr(answer.body, "STEAM_76561190000000001@example.com"));
 
-    fetch(session, HYDRA, L"POST", L"/1/nothing/here", NULL, "x", 1, &answer);
+    fetch(session, HYDRA, L"POST", L"/1/nothing/here?k=SECRETQUERY", NULL, "x", 1, &answer);
     CHECK(!answer.error && answer.status == 404 && !answer.got);
 
     /* a body larger than one packet */

@@ -4,7 +4,7 @@
 |------|-------|
 | [executable.md](executable.md) | The game executable and the code behind the Scrap Crew reward |
 | [network.md](network.md) | The online calls, their wire format and the reward timestamp |
-| [proxy.md](proxy.md) | The `winhttp.dll` proxy |
+| [proxy.md](proxy.md) | The `winhttp.dll` proxy, the listener and Proton |
 | [credits.md](credits.md) | What comes from other projects |
 
 ## How sure a claim is

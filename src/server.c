@@ -141,7 +141,8 @@ static void serve(SOCKET s)
     header(head, "Content-Length", size_text, sizeof size_text);
     length = strtoul(size_text, NULL, 10);
     if (length > BODY_LIMIT || got > length || !(body = malloc(length + 1))) {
-        log_line("listener: %s %s dropped, body of %s bytes", method, path, size_text);
+        log_line("listener: %s %.*s dropped, body of %s bytes", method, (int)strcspn(path, "?"),
+                 path, size_text);
         return;
     }
     memcpy(body, end, got);
@@ -165,8 +166,9 @@ static void serve(SOCKET s)
     LeaveCriticalSection(&state_lock);
     free(body);
 
-    log_line("listener: %s %s, %u bytes -> %d, %u bytes", method, path, (unsigned)length,
-             reply.status, (unsigned)reply.length);
+    /* a query string is never logged */
+    log_line("listener: %s %.*s, %u bytes -> %d, %u bytes", method, (int)strcspn(path, "?"), path,
+             (unsigned)length, reply.status, (unsigned)reply.length);
     answer(s, &reply);
 }
 

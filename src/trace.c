@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
- * Wrappers for the functions the game imports: log the call, pass it on, log the result.
+ * Wrappers for the functions the game imports: pass each call on and, in the trace build, log the
+ * call and its result.
  * src/winhttp.def exports hk_Name as Name. Only calls for the game's two online hosts are
  * changed: they go to the listener inside this DLL, without TLS and without any proxy.
  *
@@ -27,9 +28,9 @@
 #define LOG_RESULT(name, handle, ok)                                                             \
     do {                                                                                         \
         if (ok)                                                                                  \
-            log_line("  %s(%p) ok", name, (void *)(handle));                                     \
+            trace_line("  %s(%p) ok", name, (void *)(handle));                                     \
         else                                                                                     \
-            log_line("  %s(%p) failed, error %lu", name, (void *)(handle), GetLastError());      \
+            trace_line("  %s(%p) failed, error %lu", name, (void *)(handle), GetLastError());      \
     } while (0)
 
 /* ---------------------------------------------------------------- text */
@@ -73,7 +74,7 @@ static void log_headers(const char *what, const wchar_t *headers, DWORD length)
     char all[TEXT_SIZE * 2];
     char *line, *end;
 
-    if (!headers || !length)
+    if (!TRACING || !headers || !length)
         return;
     text(all, sizeof all, headers, length);
     for (line = all; *line; line = end) {
@@ -89,7 +90,7 @@ static void log_headers(const char *what, const wchar_t *headers, DWORD length)
                 break;
             }
         if (*line)
-            log_line("    %s: %s", what, line);
+            trace_line("    %s: %s", what, line);
     }
 }
 
@@ -163,11 +164,13 @@ static void log_status(HINTERNET handle, DWORD_PTR context, DWORD status, LPVOID
             snprintf(detail, sizeof detail, "value %lu (0x%lx)", *(DWORD *)info, *(DWORD *)info);
         break;
     }
-    log_line("callback %p context %llx: %s (0x%08lx) length %lu %s", handle,
+    trace_line("callback %p context %llx: %s (0x%08lx) length %lu %s", handle,
              (unsigned long long)context, status_name(status), status, length, detail);
 }
 
-/* WinHTTP passes a callback nothing that identifies it, so each of the caller's callbacks gets
+/* Only the trace build replaces callbacks.
+ *
+ * WinHTTP passes a callback nothing that identifies it, so each of the caller's callbacks gets
  * its own trampoline. A handle inherits its parent's trampoline with no bookkeeping here. */
 #define CALLBACKS 8
 static WINHTTP_STATUS_CALLBACK original[CALLBACKS];
@@ -189,7 +192,7 @@ static const WINHTTP_STATUS_CALLBACK trampoline[CALLBACKS] = {
 
 static WINHTTP_STATUS_CALLBACK wrap_callback(WINHTTP_STATUS_CALLBACK callback)
 {
-    if (!callback || callback == WINHTTP_INVALID_STATUS_CALLBACK || !stays_loaded())
+    if (!TRACING || !callback || callback == WINHTTP_INVALID_STATUS_CALLBACK || !stays_loaded())
         return callback;
     for (int i = 0; i < CALLBACKS; i++) {
         if (callback == trampoline[i])
@@ -226,7 +229,7 @@ HINTERNET WINAPI hk_WinHttpOpen(LPCWSTR agent, DWORD access, LPCWSTR proxy, LPCW
 {
     char a[TEXT_SIZE], m[TEXT_SIZE];
 
-    log_line("WinHttpOpen agent \"%s\" access %lu proxy %s flags 0x%lx%s from %s",
+    trace_line("WinHttpOpen agent \"%s\" access %lu proxy %s flags 0x%lx%s from %s",
              text(a, sizeof a, agent, (DWORD)-1), access, proxy ? "set" : "none", flags,
              flags & WINHTTP_FLAG_ASYNC ? " (ASYNC)" : "",
              module_of(m, sizeof m, __builtin_return_address(0)));
@@ -236,12 +239,23 @@ HINTERNET WINAPI hk_WinHttpOpen(LPCWSTR agent, DWORD access, LPCWSTR proxy, LPCW
     return session;
 }
 
+/* one line per host and launch: tells a game that never asked from a listener it never reached */
+static void report_redirect(const wchar_t *server)
+{
+    static volatile LONG reported;
+    char s[TEXT_SIZE];
+    LONG bit = (server[0] | 0x20) == 'b' ? 1 : 2;
+
+    if (!(InterlockedOr(&reported, bit) & bit))
+        log_line("redirecting %s to the listener", text(s, sizeof s, server, (DWORD)-1));
+}
+
 HINTERNET WINAPI hk_WinHttpConnect(HINTERNET session, LPCWSTR server, INTERNET_PORT port,
                                    DWORD reserved)
 {
     char s[TEXT_SIZE];
 
-    log_line("WinHttpConnect(%p) \"%s\" port %u", session, text(s, sizeof s, server, (DWORD)-1),
+    trace_line("WinHttpConnect(%p) \"%s\" port %u", session, text(s, sizeof s, server, (DWORD)-1),
              (unsigned)port);
     unsigned short local = redirect_host(server) ? server_port() : 0;
     HINTERNET connection = REAL(WinHttpConnect)(session, local ? L"127.0.0.1" : server,
@@ -250,7 +264,8 @@ HINTERNET WINAPI hk_WinHttpConnect(HINTERNET session, LPCWSTR server, INTERNET_P
     redirect_forget(connection);
     if (local && connection) {
         if (redirect_remember(connection)) {
-            log_line("  redirected to the listener");
+            trace_line("  redirected to the listener");
+            report_redirect(server);
         } else { /* no room to keep track of it: leave it as the caller asked */
             log_line("  too many connections: NOT redirected");
             REAL(WinHttpCloseHandle)(connection);
@@ -266,7 +281,7 @@ HINTERNET WINAPI hk_WinHttpOpenRequest(HINTERNET connection, LPCWSTR verb, LPCWS
 {
     char v[64], p[TEXT_SIZE], ver[64];
 
-    log_line("WinHttpOpenRequest(%p) %s \"%s\" version %s flags 0x%lx%s", connection,
+    trace_line("WinHttpOpenRequest(%p) %s \"%s\" version %s flags 0x%lx%s", connection,
              text(v, sizeof v, verb, (DWORD)-1), no_query(p, sizeof p, path, (DWORD)-1),
              text(ver, sizeof ver, version, (DWORD)-1), flags,
              flags & WINHTTP_FLAG_SECURE ? " (SECURE)" : "");
@@ -288,7 +303,7 @@ HINTERNET WINAPI hk_WinHttpOpenRequest(HINTERNET connection, LPCWSTR verb, LPCWS
 BOOL WINAPI hk_WinHttpAddRequestHeaders(HINTERNET request, LPCWSTR headers, DWORD length,
                                         DWORD modifiers)
 {
-    log_line("WinHttpAddRequestHeaders(%p) modifiers 0x%lx", request, modifiers);
+    trace_line("WinHttpAddRequestHeaders(%p) modifiers 0x%lx", request, modifiers);
     log_headers("added", headers, length);
     BOOL ok = REAL(WinHttpAddRequestHeaders)(request, headers, length, modifiers);
     LOG_RESULT("WinHttpAddRequestHeaders", request, ok);
@@ -327,10 +342,10 @@ BOOL WINAPI hk_WinHttpSetOption(HINTERNET handle, DWORD option, LPVOID buffer, D
     if (numeric_option(option) && buffer
         && (length == sizeof(DWORD) || length == sizeof value)) {
         memcpy(&value, buffer, length);
-        log_line("WinHttpSetOption(%p) option %lu length %lu value 0x%llx", handle, option,
+        trace_line("WinHttpSetOption(%p) option %lu length %lu value 0x%llx", handle, option,
                  length, value);
     } else {
-        log_line("WinHttpSetOption(%p) option %lu length %lu", handle, option, length);
+        trace_line("WinHttpSetOption(%p) option %lu length %lu", handle, option, length);
     }
     BOOL ok = REAL(WinHttpSetOption)(handle, option, buffer, length);
     LOG_RESULT("WinHttpSetOption", handle, ok);
@@ -340,7 +355,7 @@ BOOL WINAPI hk_WinHttpSetOption(HINTERNET handle, DWORD option, LPVOID buffer, D
 BOOL WINAPI hk_WinHttpSetTimeouts(HINTERNET handle, int resolve, int connect, int send,
                                   int receive)
 {
-    log_line("WinHttpSetTimeouts(%p) resolve %d connect %d send %d receive %d", handle, resolve,
+    trace_line("WinHttpSetTimeouts(%p) resolve %d connect %d send %d receive %d", handle, resolve,
              connect, send, receive);
     BOOL ok = REAL(WinHttpSetTimeouts)(handle, resolve, connect, send, receive);
     LOG_RESULT("WinHttpSetTimeouts", handle, ok);
@@ -351,7 +366,7 @@ WINHTTP_STATUS_CALLBACK WINAPI hk_WinHttpSetStatusCallback(HINTERNET handle,
                                                            WINHTTP_STATUS_CALLBACK callback,
                                                            DWORD flags, DWORD_PTR reserved)
 {
-    log_line("WinHttpSetStatusCallback(%p) callback %p mask 0x%08lx", handle, (void *)callback,
+    trace_line("WinHttpSetStatusCallback(%p) callback %p mask 0x%08lx", handle, (void *)callback,
              flags);
     WINHTTP_STATUS_CALLBACK previous = REAL(WinHttpSetStatusCallback)(
         handle, wrap_callback(callback), flags, reserved);
@@ -363,7 +378,7 @@ BOOL WINAPI hk_WinHttpSendRequest(HINTERNET request, LPCWSTR headers, DWORD head
                                   LPVOID optional, DWORD optional_length, DWORD total_length,
                                   DWORD_PTR context)
 {
-    log_line("WinHttpSendRequest(%p) body %lu of %lu bytes, context %llx", request,
+    trace_line("WinHttpSendRequest(%p) body %lu of %lu bytes, context %llx", request,
              optional_length, total_length, (unsigned long long)context);
     log_headers("sent", headers, headers_length);
     BOOL ok = REAL(WinHttpSendRequest)(request, headers, headers_length, optional,
@@ -374,7 +389,7 @@ BOOL WINAPI hk_WinHttpSendRequest(HINTERNET request, LPCWSTR headers, DWORD head
 
 BOOL WINAPI hk_WinHttpReceiveResponse(HINTERNET request, LPVOID reserved)
 {
-    log_line("WinHttpReceiveResponse(%p)", request);
+    trace_line("WinHttpReceiveResponse(%p)", request);
     BOOL ok = REAL(WinHttpReceiveResponse)(request, reserved);
     LOG_RESULT("WinHttpReceiveResponse", request, ok);
     return ok;
@@ -388,7 +403,7 @@ BOOL WINAPI hk_WinHttpQueryHeaders(HINTERNET request, DWORD level, LPCWSTR name,
     DWORD which = level & 0xffff;
 
     /* `name` is a string only for a custom header */
-    log_line("WinHttpQueryHeaders(%p) level 0x%08lx%s%s buffer %s size %lu", request, level,
+    trace_line("WinHttpQueryHeaders(%p) level 0x%08lx%s%s buffer %s size %lu", request, level,
              which == WINHTTP_QUERY_CUSTOM ? " name " : "",
              which == WINHTTP_QUERY_CUSTOM ? text(n, sizeof n, name, (DWORD)-1) : "",
              buffer ? "given" : "none", length ? *length : 0);
@@ -397,23 +412,23 @@ BOOL WINAPI hk_WinHttpQueryHeaders(HINTERNET request, DWORD level, LPCWSTR name,
     if (!ok || !buffer || !length)
         return ok;
     if (level & WINHTTP_QUERY_FLAG_NUMBER)
-        log_line("    value %lu", *(DWORD *)buffer);
+        trace_line("    value %lu", *(DWORD *)buffer);
     else if (level & WINHTTP_QUERY_FLAG_SYSTEMTIME)
-        log_line("    value is a time");
+        trace_line("    value is a time");
     else if (which == WINHTTP_QUERY_RAW_HEADERS) /* terminator-separated list */
-        log_line("    value is the raw header list, %lu bytes", *length);
+        trace_line("    value is the raw header list, %lu bytes", *length);
     else if (which == WINHTTP_QUERY_SET_COOKIE || which == WINHTTP_QUERY_COOKIE)
-        log_line("    value is a cookie");
+        trace_line("    value is a cookie");
     else if (which == WINHTTP_QUERY_RAW_HEADERS_CRLF)
         log_headers("value", buffer, *length / sizeof(wchar_t));
     else
-        log_line("    value \"%s\"", text(value, sizeof value, buffer, *length / sizeof(wchar_t)));
+        trace_line("    value \"%s\"", text(value, sizeof value, buffer, *length / sizeof(wchar_t)));
     return ok;
 }
 
 BOOL WINAPI hk_WinHttpQueryDataAvailable(HINTERNET request, LPDWORD available)
 {
-    log_line("WinHttpQueryDataAvailable(%p)%s", request, available ? " with result pointer" : "");
+    trace_line("WinHttpQueryDataAvailable(%p)%s", request, available ? " with result pointer" : "");
     BOOL ok = REAL(WinHttpQueryDataAvailable)(request, available);
     LOG_RESULT("WinHttpQueryDataAvailable", request, ok);
     return ok;
@@ -421,7 +436,7 @@ BOOL WINAPI hk_WinHttpQueryDataAvailable(HINTERNET request, LPDWORD available)
 
 BOOL WINAPI hk_WinHttpReadData(HINTERNET request, LPVOID buffer, DWORD size, LPDWORD read)
 {
-    log_line("WinHttpReadData(%p) size %lu%s", request, size, read ? " with result pointer" : "");
+    trace_line("WinHttpReadData(%p) size %lu%s", request, size, read ? " with result pointer" : "");
     BOOL ok = REAL(WinHttpReadData)(request, buffer, size, read);
     LOG_RESULT("WinHttpReadData", request, ok);
     return ok;
@@ -429,7 +444,7 @@ BOOL WINAPI hk_WinHttpReadData(HINTERNET request, LPVOID buffer, DWORD size, LPD
 
 BOOL WINAPI hk_WinHttpCloseHandle(HINTERNET handle)
 {
-    log_line("WinHttpCloseHandle(%p)", handle);
+    trace_line("WinHttpCloseHandle(%p)", handle);
     redirect_forget(handle); /* before the value can be reused */
     BOOL ok = REAL(WinHttpCloseHandle)(handle);
     LOG_RESULT("WinHttpCloseHandle", handle, ok);

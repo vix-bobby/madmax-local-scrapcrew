@@ -114,6 +114,16 @@ The profile field `timestamp_scrap_rewarded` drives the reward.
 - On `profile/update` the game sends the UTC time as text, `YYYYMMDDHHmmss` (v). The emulator
   stores its own current time instead.
 - Tried in game, with the emulator and with this mod: answering `"0"` led to Scrap Crew
-  resources right after a save load, and the game then sent the reward time to record. With this
-  mod the grant was 30 scrap for each Scrap Crew upgrade; (?) whether that is the maximum or
-  what 300 minutes give.
+  resources right after a save load, and the game then sent the reward time to record.
+
+## The amount granted
+
+(v) Tried in game with this mod, on the save load:
+
+| Time counted | Scrap per Scrap Crew upgrade |
+|--------------|------------------------------|
+| never rewarded (the game counts 300 minutes) | 30 |
+| 16 minutes since the last reward | 1 |
+
+(i) One scrap per upgrade for each full 10 minutes. (?) Whether there is a maximum: it has not
+been tried with more than the never-rewarded case.

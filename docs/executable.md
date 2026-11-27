@@ -33,7 +33,7 @@ requests, and `0x1429aaab0` (mask `0x007e0000`) on the session without agent nam
   request that records a new reward time.
 - (v) After a real exchange, `[manager+0x1374]` held the number the server sent and
   `[manager+0x1370]` held `0x7FFFFFFF`. The manager pointer is stored at `0x1417f5fd8`.
-- (?) How the amount of scrap depends on the elapsed time.
+- (i) The amount grows with the elapsed time: see [network.md](network.md#the-amount-granted).
 - (?) When the game asks again during play.
 - Tried in game: writing those fields directly changes the computed minutes, but no scrap grant
   was seen that way. A save load resets them.

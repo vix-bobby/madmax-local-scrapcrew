@@ -108,7 +108,7 @@ static BOOL CALLBACK initialise(PINIT_ONCE o, PVOID p, PVOID *c)
         if (!n || n > MAX_PATH || !start_log(temp))
             log_path[0] = L'\0';
     }
-    log_raw("madmax scrap crew mod " MOD_VERSION " loaded");
+    log_raw("madmax scrap crew mod " MOD_VERSION "%s loaded", TRACING ? " (trace build)" : "");
 
     /* never unload: WinHTTP keeps pointers to our status callbacks */
     pinned_ok = GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_PIN
@@ -126,7 +126,8 @@ static BOOL CALLBACK initialise(PINIT_ONCE o, PVOID p, PVOID *c)
     }
     if (real_library == self) /* we are installed in the system folder: nothing to forward to */
         real_library = NULL;
-    log_raw("system winhttp.dll: %s", real_library ? "loaded" : "NOT LOADED");
+    if (!real_library)
+        log_raw("system winhttp.dll: NOT LOADED");
     return TRUE;
 }
 
