@@ -1,8 +1,40 @@
 # Online calls
 
-Observed in game against [madmax-2015-offline](https://github.com/3ek/madmax-2015-offline),
-whose replies the game accepted. The replies are therefore that emulator's, not the original
-servers'. (?) Which calls and which reply fields the game really needs.
+Except in the next section, observed in game against
+[madmax-2015-offline](https://github.com/3ek/madmax-2015-offline), whose replies the game
+accepted. The replies are therefore that emulator's, not the original servers'. (?) Which calls
+and which reply fields the game really needs.
+
+## Without a replacement server
+
+Seen in game through the proxy's log, over one launch with a save load (v):
+
+- One request to each host, then no other: no retry in the roughly three minutes observed.
+- The save load sent no Hydra request after the failed authentication.
+- Hydra: `auth/pc_steam` fails at name resolution (error 12007).
+- SOAP: `cls.psn.turbine.com` still resolves and answers. `LookupWbid` got status 500, after
+  which the game read the body and closed the request. `WbSubscriptionManagement` and
+  `AmsAuthentication` were never called.
+- That `LookupWbid` request carries the SteamID and a Steam ticket, so the game still sends them
+  to whatever answers at that name.
+
+## How the game uses WinHTTP
+
+Same launch (v). (?) What differs once requests succeed.
+
+- Three sessions, all `WINHTTP_FLAG_ASYNC` with the default proxy setting: `Agora Hydra SDK
+  (Win32)`, `WBNC SDK (WinHttp)`, and one without agent name that made no connection.
+- Both hosts: port 443, `WINHTTP_FLAG_SECURE`.
+- A status callback is set on each request handle (mask `0xffffffff`), one function for Hydra and
+  another for SOAP, and cleared before the SOAP request was closed.
+- The SOAP request sets `WINHTTP_OPTION_SECURITY_FLAGS` to `0x3100`: unknown certificate
+  authority, wrong name and wrong date are ignored. The Hydra request set no option.
+- Hydra adds `Accept`, `Content-Type` and `x-http-sdk-version` with
+  `WinHttpAddRequestHeaders`; SOAP passes its headers to `WinHttpSendRequest`.
+- The whole body goes with `WinHttpSendRequest`.
+- After `SENDREQUEST_COMPLETE`, the game calls `WinHttpReceiveResponse` from the thread that
+  sent the request, reads the status code, then calls `WinHttpReadData` (4096 bytes, no result
+  pointer) until it gets 0. `WinHttpQueryDataAvailable` was not called.
 
 ## Hosts and requests
 

@@ -16,6 +16,11 @@ Addresses below hold for this file only.
 - (v) At run time their import slots, RVA `0x32c31e0` to `0x32c3248` in section `.xpdata`, hold
   the addresses of system library functions.
 
+## WinHTTP status callbacks
+
+(v) Functions the game registers: `0x142fb19b0` on Hydra requests, `0x142f9b980` on SOAP
+requests, and `0x1429aaab0` (mask `0x007e0000`) on the session without agent name.
+
 ## Scrap Crew reward
 
 - (v) The game script `scrap_crew.gsrc` has a node bound by name to `GetScrapCrewReward`, the
